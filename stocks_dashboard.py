@@ -154,8 +154,8 @@ st.markdown(" ")
 
 
 # Tabs Layout
-about, pricing_tab, fundamentals, news, financials, forecast, iv_tab, holding_tab = st.tabs(
-    ['📘 About', '📊 Pricing', '📋 Fundamentals', '📰 News', '📈 Financials', '📅 10-Day Forecast','🧮 IV Calculator', '📊 Promoter Holding'])
+about, pricing_tab, fundamentals, news, financials, forecast, iv_tab, holding_tab, chat = st.tabs(
+    ['📘 About', '📊 Pricing', '📋 Fundamentals', '📰 News', '📈 Financials', '📅 10-Day Forecast','🧮 IV Calculator', '📊 Promoter Holding', "💬 Financial Chatbot"])
 
 with about:
     st.markdown("### 🏢 Company Overview")
@@ -412,4 +412,76 @@ with holding_tab:
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("Promoter holding data is unavailable.")
+
+#At the end
+import streamlit.components.v1 as components
+import json
+
+with chat:
+    st.markdown("""
+    <style>
+        .chatbot-container {
+            position: fixed;
+            bottom: 20px;       
+            right: 20px;
+            width: 320px;
+            background-color: #1e1e1e;
+            border-radius: 10px;
+            padding: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            z-index: 9999;
+        }
+        .chat-header {
+            color: white;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+
+
+    with st.expander("💬 Ask Financial Bot", expanded=False):
+        user_input = st.text_input("Type your question about the stock:", key="chat_input")
+
+        if user_input:
+            with st.spinner("Thinking..."):
+                context = f"The stock ticker being analyzed is {ticker_yf}. The company name is {info.get('longName', ticker_yf)}."
+                full_prompt = f"{context}\n\nUser: {user_input}\nAnalyst:"
+                try:
+                    response = requests.post(
+                        url="https://api.groq.com/openai/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer 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",
+                            "Content-Type": "application/json"
+                        },
+                        json={
+                            "model": "llama-3.3-70b-versatile",
+                            "messages": [
+                                {"role": "system", "content": "You are a helpful financial analyst."},
+                                {"role": "user", "content": full_prompt}
+                            ],
+                            "temperature": 0.7
+                        },
+                        timeout=30
+                    )
+                    if response.status_code == 200:
+                        reply = response.json()['choices'][0]['message']['content']
+                        st.session_state.chat_history.append((user_input, reply))
+                    else:
+                        reply = f"API Error: {response.status_code}"
+                        st.session_state.chat_history.append((user_input, reply))
+                except Exception as e:
+                    reply = f"Error: {str(e)}"
+                    st.session_state.chat_history.append((user_input, reply))
+
+        for q, a in st.session_state.chat_history[::-1]:
+            with st.chat_message("user"):
+                st.markdown(q)
+            with st.chat_message("assistant"):
+                st.markdown(a)
+
 
